@@ -15,7 +15,7 @@ from isaaclab.app import AppLauncher
 # local imports
 import cli_args  # isort: skip
 
-
+# 接受并解析命令行参数，这是最外层的命令行参数
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
@@ -29,11 +29,15 @@ parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
 # append RSL-RL cli arguments
+
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
 
+# -----------------命令行参数结束-------------
+
+# -----------------设置一些默认的初始化参数，和变量值----------------------
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True

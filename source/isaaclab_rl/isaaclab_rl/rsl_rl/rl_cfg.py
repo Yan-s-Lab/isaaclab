@@ -127,7 +127,6 @@ class RslRlPpoAlgorithmCfg:
 # Runner configurations #
 #########################
 
-
 @configclass
 class RslRlOnPolicyRunnerCfg:
     """Configuration of the runner for on-policy algorithms."""
