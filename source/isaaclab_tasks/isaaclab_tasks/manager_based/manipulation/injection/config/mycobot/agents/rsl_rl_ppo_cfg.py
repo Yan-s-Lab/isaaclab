@@ -9,16 +9,16 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 
 @configclass
-class UR10ReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 24
+class MyCobotInjectionPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    num_steps_per_env = 32
     max_iterations = 5000
     save_interval = 50
-    experiment_name = "reach_ur10"
+    experiment_name = "mycobot_injection"
     run_name = ""
     resume = False
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
-        init_noise_std=1.0,
+        init_noise_std=0.5,
         actor_hidden_dims=[64, 64],
         critic_hidden_dims=[64, 64],
         activation="elu",
@@ -27,7 +27,7 @@ class UR10ReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.01,
+        entropy_coef=0.005,
         num_learning_epochs=8,
         num_mini_batches=4,
         learning_rate=1.0e-3,
@@ -37,3 +37,4 @@ class UR10ReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+

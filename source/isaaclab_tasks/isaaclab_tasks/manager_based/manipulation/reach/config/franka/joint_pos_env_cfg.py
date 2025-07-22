@@ -14,8 +14,9 @@ from isaaclab_tasks.manager_based.manipulation.reach.reach_env_cfg import ReachE
 # Pre-defined configs
 ##
 from isaaclab_assets import FRANKA_PANDA_CFG  # isort: skip
+# from isaaclab_assets import MYCOMBOT_280_M5_CFG
 
-
+# FRANKA_PANDA_CFG =MYCOMBOT_280_M5_CFG
 ##
 # Environment configuration
 ##

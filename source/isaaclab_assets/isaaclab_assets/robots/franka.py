@@ -21,6 +21,10 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 ##
 # Configuration
 ##
+# ------30号---我留下的备注。
+# robot_usd = "kinova_robotiq.usd"
+# usd_dir_path = os.path.join(BASE_DIR, "../usd/")
+# /home/lzg/codes/sim_usd_assets
 
 FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(

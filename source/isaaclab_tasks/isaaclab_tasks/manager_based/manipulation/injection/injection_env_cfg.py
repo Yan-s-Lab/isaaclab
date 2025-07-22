@@ -72,12 +72,26 @@ class CommandsCfg:
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.35, 0.65),
-            pos_y=(-0.2, 0.2),
-            pos_z=(0.15, 0.5),
-            roll=(0.0, 0.0),
-            pitch=MISSING,  # depends on end-effector axis
-            yaw=(-3.14, 3.14),
+            pos_x=(0.2, 0.288)
+            pos_y=(-0.12, 0.088)
+            pos_z=(0.1, 0.218)
+            roll=(0.0,0.0)
+            pitch=(0.0, 0.0)
+            yaw=(-1.57, 1.57)
+            # 修改为mycombot的数据。但是这不应该是最终数据，最终应冗余出 准备打针前的位置空间。
+            # pos_x=(0.2, 0.32),
+            # pos_y=(-0.12, 0.12),
+            # pos_z=(0.1, 0.25),
+            # roll=(0.0, 0.0),
+            # pitch=(0.0, 0.0),
+            # yaw=(-3.14, 3.14),
+
+            # pos_x=(0.35, 0.65),
+            # pos_y=(-0.2, 0.2),
+            # pos_z=(0.15, 0.5),
+            # roll=(0.0, 0.0),
+            # pitch=MISSING,  # depends on end-effector axis
+            # yaw=(-3.14, 3.14),
         ),
     )
 
@@ -186,7 +200,9 @@ class InjectionEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the Injection end-effector pose tracking environment."""
 
     # Scene settings
-    scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=4096, env_spacing=2.5)
+    # scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=2048, env_spacing=2.5)
+
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -206,3 +222,8 @@ class InjectionEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
         self.sim.dt = 1.0 / 60.0
+
+
+@configclass
+class InjectionEnvPlayCfg(InjectionEnvCfg):
+    scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=1, env_spacing=2.0)
