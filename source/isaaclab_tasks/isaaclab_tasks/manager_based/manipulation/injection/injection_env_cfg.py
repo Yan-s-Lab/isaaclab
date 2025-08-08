@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+import torch
+# from isaaclab_tasks.manager_based.manipulation.injection.stab_path_filter import SimpleIKHelper
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -65,19 +67,72 @@ class InjectionSceneCfg(InteractiveSceneCfg):
 @configclass
 class CommandsCfg:
     """Command terms for the MDP."""
-
     ee_pose = mdp.UniformPoseCommandCfg(
+        # ik_helper_path="actions.ik_filter_action.controller",
         asset_name="robot",
         body_name=MISSING,
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.2, 0.288)
-            pos_y=(-0.12, 0.088)
-            pos_z=(0.1, 0.218)
-            roll=(0.0,0.0)
-            pitch=(0.0, 0.0)
-            yaw=(-1.57, 1.57)
+            # 这是一次点位中b点位置
+            roll=(1.57,1.57),
+            pitch=(1.57,1.57),
+            yaw=(1.57,1.57),
+            pos_x=(0.2,0.2),
+            pos_y=(0.0,0.0),
+            pos_z=(0.3,0.3),
+            # 下面唯一的位置下，c的位置
+            # roll=(1.57,1.57),
+            # pitch=(1.57,1.57),
+            # yaw=(1.57,1.57),
+            # pos_x=(0.24,0.24),
+            # pos_y=(0.0,0.0),
+            # pos_z=(0.3,0.3),
+            # roll=(-1.435,-1.435),
+            # pitch=(3.142,3.142),
+            # yaw=(-1.629,-1.629),
+            # pos_x=(-0.246,-0.246),
+            # pos_y=(-0.031,-0.031),
+            # pos_z=(0.037,0.037),
+            # 把下面的 min,max 都设成同一个数
+            # roll=(-2,2),
+            # pitch=(-1,1),
+            # yaw=(-2,2),
+            # pos_x=(-0.3,0.3),
+            # pos_y=(-0.3,0.3),
+            # pos_z=(-0.3,0.3),
+            #-----上面是撞库的全范围
+            # roll=(-16.57,-16.57),
+            # pitch=(-43.26,-43.26 ),
+            # yaw=(75.64, 75.64),
+            # pos_x=(0.54, 0.54),
+            # pos_y=(0.20, 0.20),
+            # pos_z=(0.638, 0.638),
+            # --------
+            # roll=(-24.0, -24.0),
+            # pitch=(0, 0),
+            # yaw=(450.0, 450.0),
+            # pos_x=(0.15, 0.15),
+            # pos_y=(0.00, 0.00),
+            # pos_z=(0.2, 0.2),
+            # roll=(-1.5708, -1.5708),
+            # pitch=(0.0, 0.0),
+            # yaw=(1.5708, 1.5708),
+
+            # 更小逻辑， 为了测试ik的可行性，抛弃b点的随机生成，采用固定生成一个b点。固定死一个位置。
+                # pos_x=(0.10, 0.25),
+                # pos_y=(-0.12, 0.12),
+                # pos_z=(0.05, 0.22),
+                # roll=(0.0, 0.0),
+                # pitch=(0.0, 0.0),
+                # yaw=(-3.14, 3.14),
+            # 修改为更小范围，逻辑上，这个空间是一个长方体，具体这个数值为什么，没有理论，只有gpt分析。
+            # pos_x=(0.2,0.29),
+            # pos_y=(-0.12,0.12),
+            # pos_z=(0.1,0.22),
+            # roll=(0.0,0.0),
+            # pitch=(0.0, 0.0),
+            # yaw=(-3.14, 3.14),
             # 修改为mycombot的数据。但是这不应该是最终数据，最终应冗余出 准备打针前的位置空间。
             # pos_x=(0.2, 0.32),
             # pos_y=(-0.12, 0.12),
@@ -94,6 +149,44 @@ class CommandsCfg:
             # yaw=(-3.14, 3.14),
         ),
     )
+
+
+
+    # ee_pose = mdp.UniformPoseCommandCfg(
+    #     asset_name="robot",
+    #     body_name=MISSING,
+    #     resampling_time_range=(4.0, 4.0),
+    #     debug_vis=True,
+    #     ranges=mdp.UniformPoseCommandCfg.Ranges(
+    #             pos_x=(0.10, 0.25),
+    #             pos_y=(-0.12, 0.12),
+    #             pos_z=(0.05, 0.22),
+    #             roll=(0.0, 0.0),
+    #             pitch=(0.0, 0.0),
+    #             yaw=(-3.14, 3.14),
+    #         # 修改为更小范围，逻辑上，这个空间是一个长方体，具体这个数值为什么，没有理论，只有gpt分析。
+    #         # pos_x=(0.2,0.29),
+    #         # pos_y=(-0.12,0.12),
+    #         # pos_z=(0.1,0.22),
+    #         # roll=(0.0,0.0),
+    #         # pitch=(0.0, 0.0),
+    #         # yaw=(-3.14, 3.14),
+    #         # 修改为mycombot的数据。但是这不应该是最终数据，最终应冗余出 准备打针前的位置空间。
+    #         # pos_x=(0.2, 0.32),
+    #         # pos_y=(-0.12, 0.12),
+    #         # pos_z=(0.1, 0.25),
+    #         # roll=(0.0, 0.0),
+    #         # pitch=(0.0, 0.0),
+    #         # yaw=(-3.14, 3.14),
+
+    #         # pos_x=(0.35, 0.65),
+    #         # pos_y=(-0.2, 0.2),
+    #         # pos_z=(0.15, 0.5),
+    #         # roll=(0.0, 0.0),
+    #         # pitch=MISSING,  # depends on end-effector axis
+    #         # yaw=(-3.14, 3.14),
+    #     ),
+    # )
 
 
 @configclass
@@ -160,7 +253,21 @@ class RewardsCfg:
         weight=-0.1,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
     )
-
+    # demo版本b-》c
+    bc_line_reachability = RewTerm(
+        func=mdp.bc_line_reachability_reward,
+        weight=1.0,
+        params={
+        "asset_cfg": SceneEntityCfg("robot", body_names=["joint6_flange"]),
+        "command_name_b": "ee_pose",   # 先用现有这个
+        "command_name_c": "ee_pose",   # 先用同一个占位
+    },
+        # params={
+        #     "asset_cfg": SceneEntityCfg("robot", body_names=["joint6_flange"]),
+        #     "command_name_b": "b_pose",
+        #     "command_name_c": "c_pose",
+        # },\
+    )
     # action penalty
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
     joint_vel = RewTerm(
@@ -168,6 +275,23 @@ class RewardsCfg:
         weight=-0.0001,
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
+    # ------------后面是自己新建的两个reward 项目。-------
+    # Add this in RewardsCfg:
+    # path_deviation_reward = RewTerm(
+    #     func=mdp.path_deviation,
+    #     weight=-0.1,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=MISSING),
+    #         "point_a": torch.tensor([0.10, 0.0, 0.1]),
+    #         "point_b": torch.tensor([0.25, 0.0, 0.1]),
+    #     },
+    # )
+    # motion_smoothness_reward = RewTerm(
+    # func=mdp.motion_smoothness,
+    # weight=-0.001,
+    # params={"asset_cfg": SceneEntityCfg("robot")},
+# )
+
 
 
 @configclass
@@ -202,6 +326,7 @@ class InjectionEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
     # scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=4096, env_spacing=2.5)
     scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=2048, env_spacing=2.5)
+    # ik_filter_action: ActionsCfg=ActionsCfg()
 
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
@@ -223,7 +348,42 @@ class InjectionEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1.0 / 60.0
 
-
+    
 @configclass
 class InjectionEnvPlayCfg(InjectionEnvCfg):
+    scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=1, env_spacing=2.0)
+
+
+@configclass
+class InjectionEnvB2CCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the Injection end-effector pose tracking environment."""
+
+    # Scene settings
+    # scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=2048, env_spacing=2.5)
+    # ik_filter_action: ActionsCfg=ActionsCfg()
+
+    # Basic settings
+    observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
+    commands: CommandsCfg = CommandsCfg()
+    # MDP settings
+    rewards: RewardsCfg = RewardsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
+
+    def __post_init__(self):
+        """Post initialization."""
+        # general settings
+        self.decimation = 2
+        self.sim.render_interval = self.decimation
+        self.episode_length_s = 12.0
+        self.viewer.eye = (3.5, 3.5, 3.5)
+        # simulation settings
+        self.sim.dt = 1.0 / 60.0
+
+    
+@configclass
+class InjectionEnvB2CPlayCfg(InjectionEnvCfg):
     scene: InjectionSceneCfg = InjectionSceneCfg(num_envs=1, env_spacing=2.0)

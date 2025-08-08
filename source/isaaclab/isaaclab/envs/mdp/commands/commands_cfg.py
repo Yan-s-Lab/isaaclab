@@ -13,7 +13,8 @@ from isaaclab.utils import configclass
 
 from .null_command import NullCommand
 from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
-from .pose_command import UniformPoseCommand
+from .pose_command import UniformPoseCommand,MyPoseCommand
+from .filter_pose_command import FilteredPoseCommand
 from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
 
 
@@ -129,11 +130,14 @@ class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
     """Distribution ranges for the velocity commands."""
 
 
+
 @configclass
 class UniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
+    # todo:为了读到真实的坐标，改为自己的配置
+    # class_type: type = UniformPoseCommand
+    class_type: type = MyPoseCommand
 
-    class_type: type = UniformPoseCommand
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
@@ -183,6 +187,21 @@ class UniformPoseCommandCfg(CommandTermCfg):
     # Set the scale of the visualization markers to (0.1, 0.1, 0.1)
     goal_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     current_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+
+# todo，新增一个自己的配置项
+@configclass
+class FilteredPoseCommandCfg(UniformPoseCommandCfg):
+    """Configuration for the filtered pose command generator, extends UniformPoseCommandCfg."""
+
+    # 使用自定义的 FilteredPoseCommand 运行时类
+    class_type: type = FilteredPoseCommand
+
+    # 运行时动态获取 IK helper 的属性路径（在 env 对象中的属性路径）
+    ik_helper_path: str = MISSING
+    # 刺入深度（米）
+    needle_length: float = 0.01
+    # 最大方向误差阈值（度）
+    angle_thresh_deg: float = 15.0
 
 
 @configclass

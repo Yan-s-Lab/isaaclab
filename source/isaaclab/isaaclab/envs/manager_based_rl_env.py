@@ -391,3 +391,19 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
+
+
+# my_injection_env.py
+import torch
+
+class MyInjectionEnv(ManagerBasedRLEnv):
+
+    def __init__(self, cfg, render_mode=None):
+        super().__init__(cfg, render_mode)
+        self.bc_checked = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.bc_fraction = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+
+    def reset_idx(self, env_ids):
+        super().reset_idx(env_ids)
+        self.bc_checked[env_ids] = False
+        self.bc_fraction[env_ids] = 0.0
