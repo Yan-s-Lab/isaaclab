@@ -28,7 +28,9 @@ from isaaclab.utils.assets import USER_BASE_DIR
 
 MYCOMBOT_280_M5_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{USER_BASE_DIR}/robot/mycombot/m280_camera_flage_6_7_2025.usd",
+        # usd_path=f"{USER_BASE_DIR}/robot/mycombot/m280_camera_flage_6_7_2025.usd",
+        usd_path=f"{USER_BASE_DIR}/robot/mycombot/mycobot_280_m5/mycobot_280_m5/mycobot_280_m5/mycobot_280_m5.usd",
+
         # approximation_shape="convexHull",  # 或 "capsule"、"box" # gpt的回复是低精度的任务重，推荐使用这个。 而在高精度任务重不需要。 那其实按照老师说的，打针动作是交给已有算法来完成的。那么其实机械臂rl只需要做定位就好了。
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(

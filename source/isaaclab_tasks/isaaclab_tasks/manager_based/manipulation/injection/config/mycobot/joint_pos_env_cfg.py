@@ -58,26 +58,20 @@ class MyCobotInjectionEnvCfg(InjectionEnvCfg):
 
         # todo，等待验证。lzg 专门给 b→c 路径筛选用的 IK 控制器
         # 2) 新增：专门给 FilteredPoseCommand 做路径可达性检查的 IK 控制器
-        # self.actions.ik_filter_action.controller
-        self.ik_filter_action: ActionTerm = DifferentialInverseKinematicsActionCfg(
-        asset_name="robot",
-        joint_names=[
-            "joint2_to_joint1",
-            "joint3_to_joint2",
-            "joint4_to_joint3",
-            "joint5_to_joint4",
-            "joint6_to_joint5",
-            "joint6output_to_joint6",
-        ],
-        body_name="joint6_flange",
-        controller=DifferentialIKControllerCfg(
-            command_type="pose",
-            use_relative_mode=True,
-            ik_method="dls",
-        ),
-        scale=1.0,
-        body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.05]),
-    )
+        # self.actions.ik_filter_action = DifferentialInverseKinematicsActionCfg(
+        #     asset_name="robot",
+        #     joint_names=[
+        #         "joint2_to_joint1",
+        #         "joint3_to_joint2",
+        #         "joint4_to_joint3",
+        #         "joint5_to_joint4",
+        #         "joint6_to_joint5",
+        #         "joint6output_to_joint6",
+        #         ],
+        #     body_name="joint6_flange",
+        #     controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+        #     body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.05]),
+        # )
 
 
         # gripper_action: ActionTerm | None = None

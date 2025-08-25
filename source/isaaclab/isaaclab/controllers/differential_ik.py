@@ -51,7 +51,7 @@ class DifferentialIKController:
 
     """
 
-    def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int, device: str):
+    def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int=2048, device: str="cuda:0"):
         """Initialize the controller.
 
         Args:
