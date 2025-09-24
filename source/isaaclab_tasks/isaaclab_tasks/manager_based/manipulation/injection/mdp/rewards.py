@@ -16,6 +16,35 @@ from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
+# isaaclab_tasks/.../injection/mdp/rewards.py
+import torch
+
+def orientation_command_error_tanh(
+    env,
+    command_name: str,                 # 与你参考函数的参数顺序一致
+    asset_cfg,                         # SceneEntityCfg（需要已解析出 body_ids）
+    std: float = 0.1,                  # 弧度；越小越“苛刻”
+) -> torch.Tensor:
+    """
+    细粒度姿态正奖励（世界系）:
+        r = 1 - tanh(theta / std),
+    其中 theta 为当前末端与目标末端的最短路径四元数夹角（弧度）。
+    返回形状: (num_envs,)
+    """
+    # 1) 读取当前与目标（按你的参考实现）
+    asset = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)   # shape: (N, 7)  [pos(3), quat_b(4)]
+    des_quat_b = command[:, 3:7]                              # 目标（body frame）
+    des_quat_w = quat_mul(asset.data.root_quat_w, des_quat_b) # → world frame
+    curr_quat_w = asset.data.body_quat_w[:, asset_cfg.body_ids[0]]  # 当前 EE 姿态（world）
+
+    # 2) 角误差（弧度）
+    theta = quat_error_magnitude(curr_quat_w, des_quat_w)     # 与你的参考一致
+
+    # 3) tanh 形状的正奖励（小角度→奖励接近1；大角度→接近0）
+    s = max(float(std), 1e-6)
+    reward = 1.0 - torch.tanh(theta / s)                      # (N,)
+    return reward
 
 # =========================
 # 基础位姿跟踪奖励（保留原有接口）
@@ -163,6 +192,140 @@ import torch
 # =========================
 # 打印pose的工具
 # =========================
+
+
+# 放 rewards.py 里，供调试
+def dump_dof_limits(env, asset_name="robot", only_once_attr="_printed_dof_limits"):
+    # 只打印一次（避免每步刷屏/影响性能）
+    # if getattr(env, only_once_attr, False):
+    #     return
+
+    try:
+        robot = env.scene[asset_name]  # Articulation 封装对象
+    except KeyError:
+        print(f"[dump_dof_limits] asset '{asset_name}' not found in scene.")
+        setattr(env, only_once_attr, True)
+        return
+
+    # 1) 优先拿 articulation_view
+    av = getattr(robot, "articulation_view", None) or getattr(robot, "_articulation_view", None)
+
+    names = None
+    lower = None
+    upper = None
+
+    if av is not None:
+        # 名字
+        try:
+            names = av.get_dof_names()
+        except Exception:
+            names = getattr(av, "dof_names", None)
+
+        # 限位
+        try:
+            l, u = av.get_dof_limits()
+            lower = np.asarray(l).reshape(-1)
+            upper = np.asarray(u).reshape(-1)
+        except Exception:
+            pass
+
+    # 2) 兜底：从 robot.data / robot 上尝试拿
+    # 很多 Isaac Lab 封装会把关节信息放在 data 里
+    data = getattr(robot, "data", None)
+    if (names is None) and data is not None:
+        names = getattr(data, "joint_names", None) or getattr(data, "dof_names", None)
+    if (lower is None or upper is None) and data is not None:
+        lower = getattr(data, "joint_limits_lower", None)
+        upper = getattr(data, "joint_limits_upper", None)
+
+    # 再次兜底（某些版本把名字/限位直接挂在 robot 上）
+    if names is None:
+        names = getattr(robot, "dof_names", None) or getattr(robot, "joint_names", None)
+    if (lower is None or upper is None):
+        lower = getattr(robot, "dof_limits_lower", None) or getattr(robot, "joint_limits_lower", None)
+        upper = getattr(robot, "dof_limits_upper", None) or getattr(robot, "joint_limits_upper", None)
+
+    # 如果还是没有，就给出友好提示并结束（不抛异常）
+    if names is None or lower is None or upper is None:
+        print("[dump_dof_limits] articulation_view/data 未就绪。"
+              "建议：在 env.post_reset() 里调用，或确认 SceneEntityCfg.name 是否匹配。")
+        setattr(env, only_once_attr, True)
+        return
+
+    names = list(names)
+    lower = np.asarray(lower).reshape(-1)
+    upper = np.asarray(upper).reshape(-1)
+
+    print("===== DOF limits =====")
+    for i, name in enumerate(names):
+        lo = float(lower[i]); hi = float(upper[i])
+        unlimited = (not math.isfinite(lo)) or (not math.isfinite(hi)) or ((hi - lo) > 1e6)
+        if unlimited:
+            print(f"{i:02d} {name:>24}:  unlimited (continuous or not limited)")
+        else:
+            lo_deg = lo * 180.0 / math.pi
+            hi_deg = hi * 180.0 / math.pi
+            print(f"{i:02d} {name:>24}:  [{lo:+.5f}, {hi:+.5f}] rad   (~ [{lo_deg:+.1f}, {hi_deg:+.1f}] deg)")
+
+    setattr(env, only_once_attr, True)
+
+def print_robot_dof_info(env, asset_cfg, env_idx: int = 0):
+    robot = env.scene[asset_cfg.name]  # 这是 Articulation 包装
+
+    # 取 articulation_view（不同版本有不同字段名）
+    av = getattr(robot, "articulation_view", None)
+    if av is None:
+        av = getattr(robot, "_articulation_view", None)
+
+    # 确保已经 reset/initialized（view 才有效）
+    # 一般在 env.reset() 之后再调用本函数
+
+    dof_count = None
+    dof_names = None
+    dof_limits = None
+
+    if av is not None:
+        # Isaac Lab / Isaac Gym 风格
+        dof_count = getattr(av, "num_dof", None)
+        try:
+            dof_names = av.get_dof_names()
+        except Exception:
+            # 某些版本是属性
+            dof_names = getattr(av, "dof_names", None)
+
+        try:
+            # 通常返回 (lower, upper)
+            dof_limits = av.get_dof_limits()
+        except Exception:
+            pass
+    else:
+        # 退而求其次：直接从 Articulation 封装上拿（不同版本字段名不同）
+        for cand in ("num_dof", "dof_count", "get_dof_count"):
+            if hasattr(robot, cand):
+                attr = getattr(robot, cand)
+                dof_count = attr() if callable(attr) else attr
+                break
+        # 名字
+        for cand in ("dof_names", "joint_names", "get_dof_names"):
+            if hasattr(robot, cand):
+                attr = getattr(robot, cand)
+                dof_names = attr() if callable(attr) else attr
+                break
+
+    print("=== DOF 信息 ===")
+    print("env_idx:", env_idx)
+    print("articulation_view exists:", av is not None)
+    print("DOF 数量:", dof_count)
+    print("DOF 名字:", dof_names)
+    if dof_limits is not None:
+        # dof_limits 形如 (lower: np.ndarray, upper: np.ndarray)
+        try:
+            lower, upper = dof_limits
+            print("DOF 下限:", lower)
+            print("DOF 上限:", upper)
+        except Exception:
+            print("DOF 限制:", dof_limits)
+
 def debug_print_bce(env, asset_cfg, print_env_idx: int = 0):
     """打印 ee_pose / b_pose / c_pose 的命令位姿，以及当前 EEF 实际位姿（世界系）。
     print_env_idx: 打第几个子环境（默认第0个）"""
@@ -184,13 +347,14 @@ def debug_print_bce(env, asset_cfg, print_env_idx: int = 0):
     # 只打印一个 env，避免刷屏
     i = print_env_idx
     tolist = lambda x: x[i].detach().cpu().tolist()
-
-    print(
-        "[CMD] ee_pose: pos=", tolist(pos_ee_cmd), " quat=", tolist(quat_ee_cmd), "\n",
-        "[CMD] b_pose : pos=", tolist(pos_b_cmd),  " quat=", tolist(quat_b_cmd),  "\n",
-        "[CMD] c_pose : pos=", tolist(pos_c_cmd),  " quat=", tolist(quat_c_cmd),  "\n",
-        "[EEF] current: pos=", tolist(pos_eef_now), " quat=", tolist(quat_eef_now),
-    )
+    print_robot_dof_info(env, asset_cfg, env_idx=i)
+    dump_dof_limits(env, asset_name=asset_cfg.name)
+    # print(
+    #     "[CMD] ee_pose: pos=", tolist(pos_ee_cmd), " quat=", tolist(quat_ee_cmd), "\n",
+    #     "[CMD] b_pose : pos=", tolist(pos_b_cmd),  " quat=", tolist(quat_b_cmd),  "\n",
+    #     "[CMD] c_pose : pos=", tolist(pos_c_cmd),  " quat=", tolist(quat_c_cmd),  "\n",
+    #     "[EEF] current: pos=", tolist(pos_eef_now), " quat=", tolist(quat_eef_now),
+    # )
 
 
 # =========================

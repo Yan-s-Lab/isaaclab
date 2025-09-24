@@ -13,10 +13,11 @@ from .commands_cfg import (
     UniformPoseCommandCfg,
     FilteredPoseCommandCfg,
     UniformVelocityCommandCfg,
+    ListPoseCommandCfg
 )
 
 from .null_command import NullCommand
 from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
-from .pose_command import UniformPoseCommand
+from .pose_command import UniformPoseCommand,ListPoseCommand
 from .filter_pose_command import FilteredPoseCommand
 from .velocity_command import NormalVelocityCommand, UniformVelocityCommand

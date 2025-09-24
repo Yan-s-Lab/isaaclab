@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+import random
 from dataclasses import MISSING
 
 from isaaclab.managers import CommandTermCfg
@@ -13,7 +14,7 @@ from isaaclab.utils import configclass
 
 from .null_command import NullCommand
 from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
-from .pose_command import UniformPoseCommand,MyPoseCommand
+from .pose_command import UniformPoseCommand,MyPoseCommand, ListPoseCommand
 from .filter_pose_command import FilteredPoseCommand
 from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
 
@@ -188,6 +189,11 @@ class UniformPoseCommandCfg(CommandTermCfg):
     goal_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     current_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
 
+from typing import List, Tuple
+from isaaclab.utils.configclass import configclass, MISSING
+
+
+
 # todo，新增一个自己的配置项
 @configclass
 class FilteredPoseCommandCfg(UniformPoseCommandCfg):
@@ -265,3 +271,38 @@ class TerrainBasedPose2dCommandCfg(UniformPose2dCommandCfg):
 
     ranges: Ranges = MISSING
     """Distribution ranges for the sampled commands."""
+
+
+@configclass
+class ListPoseCommandCfg(CommandTermCfg):
+    """从候选点列表中选择目标位姿（仅改变取点方式）。"""
+    class_type: type = ListPoseCommand
+
+    asset_name: str = MISSING
+    body_name: str = MISSING
+
+    # 是否让四元数实部为正，保持与参考一致
+    make_quat_unique: bool = True
+
+    # 采样周期：沿用基类/项目已有字段；若你的工程使用 *_s 命名，也可写成 resampling_time_range_s
+    # 不更改系统行为，仅暴露可配置入口
+    resampling_time_range_s: Tuple[float, float] = (4.0, 4.0)
+
+    # 候选位姿（必填）：(x,y,z, roll,pitch,yaw)，弧度
+    candidate_poses: List[Tuple[float, float, float, float, float, float]] = MISSING
+
+    # 可视化与参考保持一致
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
+        prim_path="/Visuals/Command/goal_pose"
+    )
+    current_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
+        prim_path="/Visuals/Command/body_pose"
+    )
+    goal_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+    current_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+
+    # 兼容 __str__ 输出：某些参考类打印的是 resampling_time_range（无 _s）
+    # 如果你项目里确实是无后缀的名字，可加一个只读别名以兼容打印，而不改变行为。
+    @property
+    def resampling_time_range(self) -> Tuple[float, float]:
+        return self.resampling_time_range_s

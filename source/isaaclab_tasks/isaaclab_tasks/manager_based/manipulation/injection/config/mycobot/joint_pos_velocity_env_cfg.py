@@ -40,7 +40,7 @@ class MyCobotInjectionEnvCfg(InjectionEnvCfg):
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["joint6_flange"]
 
         # ✅ 替换动作的关节名
-        self.actions.arm_action = mdp.JointPositionActionCfg(
+        self.actions.arm_action = mdp.JointVelocityActionCfg(
             asset_name="robot", joint_names=[
                 "joint2_to_joint1",
                 "joint3_to_joint2",
@@ -49,13 +49,13 @@ class MyCobotInjectionEnvCfg(InjectionEnvCfg):
                 "joint6_to_joint5",
                 "joint6output_to_joint6"
             ],
-            scale=0.5,
-            use_default_offset=True
+            scale=1.2,
+            use_default_offset=False
         )
 
         # ✅ 替换 command 目标末端
         self.commands.ee_pose.body_name = "joint6_flange"
-        # self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
+        self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
 
         # todo，等待验证。lzg 专门给 b→c 路径筛选用的 IK 控制器
         # 2) 新增：专门给 FilteredPoseCommand 做路径可达性检查的 IK 控制器

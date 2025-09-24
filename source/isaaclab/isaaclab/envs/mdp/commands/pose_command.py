@@ -21,7 +21,7 @@ from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, qu
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-    from .commands_cfg import UniformPoseCommandCfg
+    from .commands_cfg import UniformPoseCommandCfg,ListPoseCommandCfg
 
 
 class UniformPoseCommand(CommandTerm):
@@ -267,3 +267,116 @@ class MyPoseCommand(UniformPoseCommand):
               f"quat=(w={wr[0]:.3f},x={wr[1]:.3f},y={wr[2]:.3f},z={wr[3]:.3f}), "
               f"euler=(roll={w_roll:.3f}, pitch={w_pitch:.3f}, yaw={w_yaw:.3f})")
         
+
+class ListPoseCommand(CommandTerm):
+    """Command generator that picks poses from a fixed candidate list.
+    Only the sampling method differs from UniformPoseCommand; everything else stays the same.
+    """
+    cfg: ListPoseCommandCfg  # 与你的配置类对应
+
+    def __init__(self, cfg: ListPoseCommandCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        # 目标资产与 body
+        self.robot: Articulation = env.scene[cfg.asset_name]
+        self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
+
+        # 缓冲区（与 UniformPoseCommand 保持一致）
+        # -- base frame 下的命令 (x, y, z, qw, qx, qy, qz)
+        self.pose_command_b = torch.zeros(self.num_envs, 7, device=self.device)
+        self.pose_command_b[:, 3] = 1.0
+        # -- world frame 下的命令（用于误差计算/可视化）
+        self.pose_command_w = torch.zeros_like(self.pose_command_b)
+
+        # 指标（保持一致）
+        self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
+
+        # 候选位姿缓存为 tensor: [K, 6] -> (x,y,z,roll,pitch,yaw)；角度单位：弧度
+        if len(cfg.candidate_poses) == 0:
+            raise ValueError("ListPoseCommand: candidate_poses is empty.")
+        self._candidates = torch.tensor(cfg.candidate_poses, dtype=torch.float32, device=self.device)
+
+    def __str__(self) -> str:
+        msg = "ListPoseCommand:\n"
+        msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
+        # 与参考类一致地输出采样周期字段名
+        if hasattr(self.cfg, "resampling_time_range"):
+            msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
+        elif hasattr(self.cfg, "resampling_time_range_s"):
+            msg += f"\tResampling time range: {self.cfg.resampling_time_range_s}\n"
+        return msg
+
+    @property
+    def command(self) -> torch.Tensor:
+        """(num_envs, 7): (x,y,z, qw,qx,qy,qz) in base frame."""
+        return self.pose_command_b
+
+    def _resample_command(self, env_ids: Sequence[int]):
+        """仅改变采样方式：从候选表中为每个 env 选一个 (x,y,z,r,p,y)。"""
+        # 为每个 env 随机挑一个索引
+        idx = torch.randint(0, self._candidates.shape[0], (len(env_ids),), device=self.device)
+        sel = self._candidates[idx]  # [num_envs, 6]
+        pos = sel[:, 0:3]
+        eul = sel[:, 3:6]  # (roll, pitch, yaw) — 弧度
+
+        # 位置直接赋值
+        self.pose_command_b[env_ids, 0:3] = pos
+        # 欧拉角 -> 四元数
+        quat = quat_from_euler_xyz(eul[:, 0], eul[:, 1], eul[:, 2])
+        # 与参考类保持同样的“唯一化”处理
+        self.pose_command_b[env_ids, 3:7] = quat_unique(quat) if self.cfg.make_quat_unique else quat
+
+    def _update_command(self):
+        """保持与参考类一致（空实现）。"""
+        pass
+
+    def _update_metrics(self):
+        """与参考类保持一致：变换到世界系并计算误差。"""
+        self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
+            self.robot.data.root_pos_w,
+            self.robot.data.root_quat_w,
+            self.pose_command_b[:, :3],
+            self.pose_command_b[:, 3:],
+        )
+        pos_error, rot_error = compute_pose_error(
+            self.pose_command_w[:, :3],
+            self.pose_command_w[:, 3:],
+            self.robot.data.body_pos_w[:, self.body_idx],
+            self.robot.data.body_quat_w[:, self.body_idx],
+        )
+        self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
+        self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        """与参考类一致的可视化创建/开关。"""
+        if debug_vis:
+            if not hasattr(self, "goal_pose_visualizer"):
+                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
+                self.current_pose_visualizer = VisualizationMarkers(self.cfg.current_pose_visualizer_cfg)
+            self.goal_pose_visualizer.set_visibility(True)
+            self.current_pose_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "goal_pose_visualizer"):
+                self.goal_pose_visualizer.set_visibility(False)
+                self.current_pose_visualizer.set_visibility(False)
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # 创建可视化 markers
+        if debug_vis:
+            if not hasattr(self, "goal_pose_visualizer"):
+                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
+                self.current_pose_visualizer = VisualizationMarkers(self.cfg.current_pose_visualizer_cfg)
+            self.goal_pose_visualizer.set_visibility(True)
+            self.current_pose_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "goal_pose_visualizer"):
+                self.goal_pose_visualizer.set_visibility(False)
+                self.current_pose_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
+        if not self.robot.is_initialized:
+            return
+        # 画目标姿态
+        self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
+        # 画当前姿态
+        body_link_pose_w = self.robot.data.body_link_pose_w[:, self.body_idx]
+        self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])
