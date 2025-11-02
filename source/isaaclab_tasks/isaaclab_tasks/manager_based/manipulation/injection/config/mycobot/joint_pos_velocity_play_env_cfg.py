@@ -50,7 +50,7 @@ class MyCobotInjectionEnvCfg(InjectionEnvPlayCfg):
 
         # ✅ 替换 command 目标末端
         self.commands.ee_pose.body_name = "joint6_flange"
-        self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
+        # self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
 
 @configclass
 class MyCobotInjectionEnvCfg_PLAY(MyCobotInjectionEnvCfg):

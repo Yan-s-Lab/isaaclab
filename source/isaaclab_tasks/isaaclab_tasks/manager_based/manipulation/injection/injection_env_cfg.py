@@ -357,6 +357,9 @@ class EventCfg:
     # )
 
 
+
+
+#-------------下面是 RewardsCfg 的注释保留版本版----------------
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
@@ -431,6 +434,8 @@ class RewardsCfg:
     # weight=-0.001,
     # params={"asset_cfg": SceneEntityCfg("robot")},
 # )
+# 上面是11 月 1 号注释的, 保留.
+
 # -------------上面是自己新建的两个reward 项目。------- 
 # 把bc注释掉了， 先不用。md
 #     bc_line_reach_cmd = RewTerm(

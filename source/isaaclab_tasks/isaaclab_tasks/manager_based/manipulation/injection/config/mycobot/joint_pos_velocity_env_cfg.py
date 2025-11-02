@@ -55,7 +55,7 @@ class MyCobotInjectionEnvCfg(InjectionEnvCfg):
 
         # ✅ 替换 command 目标末端
         self.commands.ee_pose.body_name = "joint6_flange"
-        self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
+        # self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
 
         # todo，等待验证。lzg 专门给 b→c 路径筛选用的 IK 控制器
         # 2) 新增：专门给 FilteredPoseCommand 做路径可达性检查的 IK 控制器
