@@ -355,6 +355,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
+        # print(f"[lzg INFO] Resetting environments: reset ")
         # apply events such as randomizations for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
@@ -404,6 +405,6 @@ class MyInjectionEnv(ManagerBasedRLEnv):
         self.bc_fraction = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
 
     def reset_idx(self, env_ids):
-        super().reset_idx(env_ids)
+        super()._reset_idx(env_ids)
         self.bc_checked[env_ids] = False
         self.bc_fraction[env_ids] = 0.0

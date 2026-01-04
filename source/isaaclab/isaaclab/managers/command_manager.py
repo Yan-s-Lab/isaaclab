@@ -161,7 +161,9 @@ class CommandTerm(ManagerTermBase):
         # resample the command if necessary
         resample_env_ids = (self.time_left <= 0.0).nonzero().flatten()
         if len(resample_env_ids) > 0:
-            self._resample(resample_env_ids)
+            # 志国注释,不希望随着时间变动,而刷新点位,我们的任务都是从 0 点位开始的
+            # self._resample(resample_env_ids)
+            pass
         # update the command
         self._update_command()
 

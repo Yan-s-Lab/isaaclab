@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
-
+import time
 import math
 import torch
 from typing import TYPE_CHECKING
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 # isaaclab_tasks/.../injection/mdp/rewards.py
-import torch
+
 
 def orientation_command_error_tanh(
     env,
@@ -45,6 +45,87 @@ def orientation_command_error_tanh(
     s = max(float(std), 1e-6)
     reward = 1.0 - torch.tanh(theta / s)                      # (N,)
     return reward
+    def position_anisotropic_error(
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        wx: float = 1.0,
+        wy: float = 1.0,
+        wz: float = 3.0,
+    ) -> torch.Tensor:
+        """
+        各向异性位置误差（始终同时看 x,y,z，只是 z 的权重大一些）：
+    
+        err = || [wx*dx, wy*dy, wz*dz] ||_2
+    
+        - wz > wx, wy 时，高度误差在 reward 里更“贵”
+        - 不会出现完全忽略 xy 的情况
+        """
+        asset: RigidObject = env.scene[asset_cfg.name]
+    
+        # 目标末端位置（世界系）
+        command = env.command_manager.get_command(command_name)  # (N, >=3)
+        des_pos_b = command[:, :3]
+        des_pos_w, _ = combine_frame_transforms(
+            asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b
+        )  # (N,3)
+    
+        # 当前末端位置（世界系）
+        curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # (N,3)
+    
+        diff = curr_pos_w - des_pos_w  # (N,3) = [dx, dy, dz]
+        # 各向异性加权
+        diff_weighted = torch.empty_like(diff)
+        diff_weighted[:, 0] = wx * diff[:, 0]
+        diff_weighted[:, 1] = wy * diff[:, 1]
+        diff_weighted[:, 2] = wz * diff[:, 2]
+    
+        err = torch.norm(diff_weighted, dim=1)  # (N,)
+        return err
+
+def position_height_then_xy_error(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    z_index: int = 2,      # 假设 world z = 高度；如果你的高度轴不是 2，可以改
+    z_tol: float = 0.01,   # 高度误差小于 1cm 时，才开始关心平面误差
+    lambda_xy: float = 1.0 # 平面误差权重系数
+) -> torch.Tensor:
+    """
+    “先高度、再平面”的位置误差：
+
+    - dz = |z_now - z_des|
+    - d_xy = || [x_now,y_now] - [x_des,y_des] ||
+    - gate = clamp(1 - dz / z_tol, 0, 1)
+
+      当 dz >> z_tol 时：gate≈0 → 基本只看 dz；
+      当 dz → 0 时：gate→1 → 同时惩罚 dz 和 d_xy。
+
+    返回一个标量误差，配合负的 weight 使用。
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    # 目标末端位置（世界系）
+    command = env.command_manager.get_command(command_name)  # (N, >=3)
+    des_pos_b = command[:, :3]
+    des_pos_w, _ = combine_frame_transforms(
+        asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b
+    )  # (N,3)
+
+    # 当前末端位置（世界系）
+    curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # (N,3)
+
+    diff = curr_pos_w - des_pos_w   # (N,3)
+    dz = torch.abs(diff[:, z_index])              # (N,)
+    d_xy = torch.norm(diff[:, [0, 1]], dim=1)     # (N,) 这里默认 x,y 是 0,1
+
+    # gate in [0,1]：高度误差越小，平面误差权重越大
+    z_tol = float(max(z_tol, 1e-6))
+    gate = torch.clamp(1.0 - dz / z_tol, 0.0, 1.0)
+
+    # 总误差：始终惩罚 dz，平面误差被 gate 决定何时开始起作用
+    err = dz + lambda_xy * gate * d_xy
+    return err
 
 # =========================
 # 基础位姿跟踪奖励（保留原有接口）
@@ -57,6 +138,173 @@ def position_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg:
     des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b)
     curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # type: ignore
     return torch.norm(curr_pos_w - des_pos_w, dim=1)
+def position_anisotropic_error(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    wx: float = 1.0,
+    wy: float = 1.0,
+    wz: float = 3.0,
+) -> torch.Tensor:
+    """
+    各向异性位置误差（始终同时看 x,y,z，只是 z 的权重大一些）：
+
+    err = || [wx*dx, wy*dy, wz*dz] ||_2
+
+    - wz > wx, wy 时，高度误差在 reward 里更“贵”
+    - 不会出现完全忽略 xy 的情况
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    # 目标末端位置（世界系）
+    command = env.command_manager.get_command(command_name)  # (N, >=3)
+    des_pos_b = command[:, :3]
+    des_pos_w, _ = combine_frame_transforms(
+        asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b
+    )  # (N,3)
+
+    # 当前末端位置（世界系）
+    curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # (N,3)
+
+    diff = curr_pos_w - des_pos_w  # (N,3) = [dx, dy, dz]
+    # 各向异性加权
+    diff_weighted = torch.empty_like(diff)
+    diff_weighted[:, 0] = wx * diff[:, 0]
+    diff_weighted[:, 1] = wy * diff[:, 1]
+    diff_weighted[:, 2] = wz * diff[:, 2]
+
+    err = torch.norm(diff_weighted, dim=1)  # (N,)
+    return err
+
+
+def position_z_error(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    z_index: int = 2,   # 通常 z 是第 2 维
+) -> torch.Tensor:
+    """只看高度方向的绝对误差 |dz|。"""
+    asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    des_pos_b = command[:, :3]
+    des_pos_w, _ = combine_frame_transforms(
+        asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b
+    )
+    curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]
+    diff = curr_pos_w - des_pos_w
+    dz = torch.abs(diff[:, z_index])
+    return dz  # (N,)
+
+
+def position_xy_error(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """只看 x-y 平面的误差 sqrt(dx^2 + dy^2)。"""
+    asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    des_pos_b = command[:, :3]
+    des_pos_w, _ = combine_frame_transforms(
+        asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b
+    )
+    curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]
+    diff = curr_pos_w - des_pos_w
+    d_xy = torch.norm(diff[:, :2], dim=1)
+    return d_xy  # (N,)
+
+def ee_cylindrical_overshoot_penalty(
+    env,
+    asset_cfg: SceneEntityCfg,
+    command_name: str,
+    margin: float = 0.02,   # 水平半径放宽 (m)
+) -> torch.Tensor:
+    """
+    圆柱体超界惩罚（忽略 z，只看 x-y 平面）——连续版：
+
+    - 起点：p_start_xy = 本 episode 起始末端位置在 x-y 平面的坐标
+    - 目标：p_target_xy = ee_pose 对应的目标末端位置在 x-y 平面的坐标
+    - 半径：R = ||p_target_xy - p_start_xy|| + margin
+    - 当前步惩罚值 = max( ||p_now_xy - p_start_xy|| - R, 0 )
+
+    返回：(num_envs,) 的非负连续值，配合负 weight 使用。
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    device = env.device
+    
+    # ========= 0. 计时器初始化 =========
+    # 只初始化一次
+    # if not hasattr(env, "_prof_cyl_inited"):
+    #     env._prof_cyl_inited = True
+    #     env._prof_cyl_time_accum = 0.0
+    #     env._prof_cyl_calls = 0
+
+    # # 开始计时
+    # t0 = time.perf_counter()
+    
+    # 1) 目标末端“世界系”位置
+    command = env.command_manager.get_command(command_name)  # (N, >=3)
+    des_pos_b = command[:, :3]
+    des_pos_w, _ = combine_frame_transforms(
+        asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b
+    )  # (N,3)
+    target_xy = des_pos_w[:, :2]  # 只要 x,y
+
+    # 2) 当前末端位置（世界系）
+    curr_pos = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # (N,3)
+    curr_xy = curr_pos[:, :2]  # 只要 x,y
+    N = curr_xy.shape[0]
+
+    # 3) 初始化：记录“起点的 x-y”和“允许半径 R”
+    need_init = (
+        (not hasattr(env, "_ee_cyl_inited"))
+        or (not getattr(env, "_ee_cyl_inited"))
+        or (not hasattr(env, "_ee_cyl_start_xy"))
+        or (env._ee_cyl_start_xy.shape[0] != N)
+    )
+
+    if need_init:
+        # 起点 = 本 episode 一开始时的 EE 水平位置
+        env._ee_cyl_start_xy = curr_xy.detach().clone()  # (N,2)
+        # 半径 = 起点到目标的水平距离 + margin
+        env._ee_cyl_R = torch.norm(
+            target_xy - env._ee_cyl_start_xy, dim=1
+        ) + float(margin)  # (N,)
+        env._ee_cyl_inited = True
+
+    # 4) 每次 reset 时，对被 reset 的 env 重置起点 & 半径
+    if hasattr(env, "reset_buf"):
+        reset_mask = env.reset_buf.to(device=device).bool()
+        if reset_mask.any():
+            env._ee_cyl_start_xy[reset_mask] = curr_xy[reset_mask]
+            env._ee_cyl_R[reset_mask] = torch.norm(
+                target_xy[reset_mask] - env._ee_cyl_start_xy[reset_mask], dim=1
+            ) + float(margin)
+
+    # 5) 当前步的水平距离
+    dist_xy_now = torch.norm(curr_xy - env._ee_cyl_start_xy, dim=1)   # (N,)
+
+    # 6) 连续惩罚：只惩罚“超出的那一截”
+    excess = torch.clamp(dist_xy_now - env._ee_cyl_R, min=0.0)        # (N,)
+    # # ========= 6) 结束计时 & 打印统计 =========
+    # # 如果在 CUDA 上跑，需要同步一下，否则计时只算到 kernel 提交，不算 kernel 结束
+    # torch.cuda.synchronize(device)
+
+    # dt = time.perf_counter() - t0
+    # env._prof_cyl_time_accum += dt
+    # env._prof_cyl_calls += 1
+
+    # # 每隔 1000 次调用打印一次平均耗时（避免刷屏）
+    # PRINT_EVERY = 1000
+    # if env._prof_cyl_calls % PRINT_EVERY == 0:
+    #     avg = env._prof_cyl_time_accum / env._prof_cyl_calls
+    #     print(
+    #         f"[PROFILE] cyl_reward avg = {avg * 1e3:.4f} ms / call "
+    #         f"(calls={env._prof_cyl_calls})"
+    #     )
+
+    # 返回一个非负连续值；RL 这边用负权重就行
+    return excess
 
 
 def position_command_error_tanh(

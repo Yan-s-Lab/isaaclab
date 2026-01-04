@@ -11,7 +11,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 @configclass
 class MyCobotInjectionPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
-    max_iterations = 1500
+    max_iterations = 600
     save_interval = 50
     experiment_name = "mycobot_injection"
     run_name = ""

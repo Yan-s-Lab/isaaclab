@@ -35,7 +35,7 @@ class MyCobotInjectionEnvCfg(InjectionEnvCfg):
         self.scene.robot = MYCOMBOT_280_M5_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # ✅ 替换控制末端名
-        self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["joint6_flange"]
+        # self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["joint6_flange"]
         self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["joint6_flange"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["joint6_flange"]
 
@@ -50,6 +50,8 @@ class MyCobotInjectionEnvCfg(InjectionEnvCfg):
                 "joint6output_to_joint6"
             ],
             scale=0.5,
+            # scale=1.2,
+
             use_default_offset=True
         )
 
